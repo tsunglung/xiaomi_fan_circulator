@@ -1,6 +1,6 @@
 # Xiaomi Mijia DC Frequency Conversion Circulating Fan
 
-This is a custom component for home assistant to integrate the Xiaomi Mijia DC Frequency Conversion Circulating Fan.
+This is a custom component for home assistant to integrate the Xiaomi Mijia DC Frequency Conversion Circulating Fan (`zhimi.fan.fa1`, `zhimi.fan.fb1`).
 
 Please follow the instructions on [Retrieving the Access Token](https://www.home-assistant.io/components/vacuum.xiaomi_miio/#retrieving-the-access-token) to get the API token to use in the configuration.yaml file.
 
@@ -55,7 +55,7 @@ Configuration variables:
 - **host** (*Required*): The IP of your fan.
 - **token** (*Required*): The API token of your fan.
 - **name** (*Optional*): The name of your fan.
-- **model** (*Optional*): The model of your device. Valid values are `zhimi.fan.fa1`. This setting can be used to bypass the device model detection and is recommended if your device isn't always available.
+- **model** (*Optional*): The model of your device. Valid values are `zhimi.fan.fa1` or `zhimi.fan.fb1`. This setting can be used to bypass the device model detection and is recommended if your device isn't always available.
 
 ## Platform services
 
