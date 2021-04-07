@@ -40,6 +40,7 @@ CONF_MODEL = "model"
 CONF_RETRIES = "retries"
 
 MODEL_FAN_FA1 = "zhimi.fan.fa1"
+MODEL_FAN_FB1 = "zhimi.fan.fb1"
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
@@ -48,7 +49,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
         vol.Optional(CONF_MODEL): vol.In(
             [
-                MODEL_FAN_FA1,
+                MODEL_FAN_FA1, MODEL_FAN_FB1,
             ]
         ),
         vol.Optional(CONF_RETRIES, default=DEFAULT_RETRIES): cv.positive_int,
@@ -261,7 +262,7 @@ async def async_setup_platform(hass, config, async_add_devices, discovery_info=N
         except DeviceException:
             raise PlatformNotReady
 
-    if model == MODEL_FAN_FA1:
+    if model in (MODEL_FAN_FA1, MODEL_FAN_FB1):
 
         fan = Fan(host, token, model=model)
         device = XiaomiFanFA1(name, fan, model, unique_id, retries)
