@@ -28,19 +28,22 @@ from homeassistant.components.fan import (
 )
 from homeassistant.const import CONF_NAME, CONF_HOST, CONF_TOKEN, ATTR_ENTITY_ID
 from homeassistant.exceptions import PlatformNotReady
+from homeassistant.config_entries import SOURCE_IMPORT
 import homeassistant.helpers.config_validation as cv
+
+from .const import (
+    DEFAULT_NAME,
+    DOMAIN,
+    DEFAULT_RETRIES,
+    CONF_RETRIES,
+    CONF_MODEL,
+    MODEL_FAN_FA1,
+    MODEL_FAN_FB1,
+    DATA_KEY
+)
 
 _LOGGER = logging.getLogger(__name__)
 
-DEFAULT_NAME = "Xiaomi Circulating Fan"
-DEFAULT_RETRIES = 20
-DATA_KEY = "fan.xiaomi_fan_fa1"
-
-CONF_MODEL = "model"
-CONF_RETRIES = "retries"
-
-MODEL_FAN_FA1 = "zhimi.fan.fa1"
-MODEL_FAN_FB1 = "zhimi.fan.fb1"
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
@@ -174,7 +177,7 @@ FEATURE_FLAGS_FAN = (
 )
 
 FEATURE_FLAGS_FAN_FA1 = (
-    FEATURE_FLAGS_GENERIC
+    FEATURE_SET_CHILD_LOCK
     | FEATURE_SET_NATURAL_MODE
     | FEATURE_SET_OSCILLATION_ANGLE
     | FEATURE_SET_LED
@@ -231,45 +234,66 @@ SERVICE_TO_METHOD = {
 }
 
 
-async def async_setup_platform(hass, config, async_add_devices, discovery_info=None):
+async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
+    """Import Mijia Circulator configuration from YAML."""
+    _LOGGER.warning(
+        "Loading Mijia Circulator via platform setup is deprecated; Please remove it from your configuration"
+    )
+    hass.async_create_task(
+        hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": SOURCE_IMPORT},
+            data=config,
+        )
+    )
+
+
+async def async_setup_entry(hass, config, async_add_devices, discovery_info=None):
     # pylint: disable=unused-argument, too-many-locals
     """Set up the miio fan device from config."""
 
     if DATA_KEY not in hass.data:
         hass.data[DATA_KEY] = {}
 
-    host = config.get(CONF_HOST)
-    name = config.get(CONF_NAME)
-    token = config.get(CONF_TOKEN)
-    model = config.get(CONF_MODEL)
-    retries = config.get(CONF_RETRIES)
+    if config.data.get(CONF_HOST, None):
+        host = config.data[CONF_HOST]
+        token = config.data[CONF_TOKEN]
+    else:
+        host = config.options[CONF_HOST]
+        token = config.options[CONF_TOKEN]
+
+    model = config.options.get(CONF_MODEL)
+    retries = config.options.get(CONF_RETRIES, DEFAULT_RETRIES)
+    name = config.title
 
     _LOGGER.info("Initializing with host %s (token %s...)", host, token[:5])
     unique_id = None
 
-    if model is None:
-        try:
-            miio_device = Device(host, token)
-            device_info = miio_device.info()
+    try:
+        miio_device = Device(host, token)
+        device_info = miio_device.info()
+        if device_info.model:
             model = device_info.model
-            unique_id = "{}-{}".format(model, device_info.mac_address)
-            _LOGGER.info(
-                "%s %s %s detected",
-                model,
-                device_info.firmware_version,
-                device_info.hardware_version,
-            )
-        except DeviceException:
-            raise PlatformNotReady
+        unique_id = "{}-{}".format(model, device_info.mac_address)
+        _LOGGER.info(
+            "%s %s %s detected",
+            model,
+            device_info.firmware_version,
+            device_info.hardware_version,
+        )
+    except DeviceException:
+        raise PlatformNotReady
 
     if model in (MODEL_FAN_FA1, MODEL_FAN_FB1):
 
+        if unique_id is None:
+            unique_id = "{}-{}".format(model, host)
         fan = Fan(host, token, model=model)
         device = XiaomiFanFA1(name, fan, model, unique_id, retries)
     else:
         _LOGGER.error(
             "Unsupported device found! Please create an issue at "
-            "https://github.com/syssi/xiaomi_fan/issues "
+            "https://github.com/tsunglung/xiaomi_fan_circulator/issues "
             "and provide the following data: %s",
             model,
         )
@@ -304,12 +328,12 @@ async def async_setup_platform(hass, config, async_add_devices, discovery_info=N
         if update_tasks:
             await asyncio.wait(update_tasks, loop=hass.loop)
 
-    for air_purifier_service in SERVICE_TO_METHOD:
-        schema = SERVICE_TO_METHOD[air_purifier_service].get(
+    for service in SERVICE_TO_METHOD:
+        schema = SERVICE_TO_METHOD[service].get(
             "schema", AIRPURIFIER_SERVICE_SCHEMA
         )
         hass.services.async_register(
-            DOMAIN, air_purifier_service, async_service_handler, schema=schema
+            DOMAIN, service, async_service_handler, schema=schema
         )
 
 
@@ -465,14 +489,15 @@ class XiaomiFanFA1(XiaomiGenericDevice):
         self._available_attributes = AVAILABLE_ATTRIBUTES_FAN_FA1
         self._speed_list = list(FAN_SPEED_LIST_FA1)
         self._speed = None
+        self._unique_id = unique_id
         self._oscillate = None
         self._natural_mode = False
-        self._unique_id = unique_id
-        self._retry = 0
+        self._retry = retries
         self._state_attrs[ATTR_SPEED] = None
         self._state_attrs.update(
             {attribute: None for attribute in self._available_attributes}
         )
+        self._did = None
 
     @property
     def supported_features(self) -> int:
@@ -488,10 +513,21 @@ class XiaomiFanFA1(XiaomiGenericDevice):
             return
 
         try:
+            if self._did is None:
+                status = await self.hass.async_add_job(
+                    self._device.raw_command,
+                    "get_properties",
+                    [{"piid": 3, "siid": 1, "did": self._did}]
+                )
+                if status[0]['code'] == 0:
+                    self._did = status[0]['value']
+                else:
+                    self._did = self._unique_id
+
             status = await self.hass.async_add_job(
                 self._device.raw_command,
                 "get_properties",
-                [{"piid": 1, "siid": 2, "did": self._unique_id}]
+                [{"piid": 1, "siid": 2, "did": self._did}]
             )
             _LOGGER.info("Got new status: %s", status)
 
@@ -501,7 +537,7 @@ class XiaomiFanFA1(XiaomiGenericDevice):
                 status = await self.hass.async_add_job(
                     self._device.raw_command,
                     "get_properties",
-                    [{"piid": 7, "siid": 2, "did": self._unique_id}]
+                    [{"piid": 7, "siid": 2, "did": self._did}]
                 )
                 self._natural_mode = status[0]['value'] == 0
                 self._state_attrs[ATTR_MODE] = status[0]['value']
@@ -509,7 +545,7 @@ class XiaomiFanFA1(XiaomiGenericDevice):
                 status = await self.hass.async_add_job(
                     self._device.raw_command,
                     "get_properties",
-                    [{"piid": 3, "siid": 2, "did": self._unique_id}]
+                    [{"piid": 3, "siid": 2, "did": self._did}]
                 )
                 self._oscillate = status[0]['value']
                 self._state_attrs[ATTR_OSCILLATING] = self._oscillate
@@ -517,49 +553,49 @@ class XiaomiFanFA1(XiaomiGenericDevice):
                 status = await self.hass.async_add_job(
                     self._device.raw_command,
                     "get_properties",
-                    [{"piid": 4, "siid": 2, "did": self._unique_id}]
+                    [{"piid": 4, "siid": 2, "did": self._did}]
                 )
                 self._state_attrs[ATTR_DIRECTION] = status[0]['value']
 
                 status = await self.hass.async_add_job(
                     self._device.raw_command,
                     "get_properties",
-                    [{"piid": 5, "siid": 2, "did": self._unique_id}]
+                    [{"piid": 5, "siid": 2, "did": self._did}]
                 )
                 self._state_attrs[ATTR_ANGLE] = status[0]['value']
 
                 status = await self.hass.async_add_job(
                     self._device.raw_command,
                     "get_properties",
-                    [{"piid": 10, "siid": 2, "did": self._unique_id}]
+                    [{"piid": 10, "siid": 2, "did": self._did}]
                 )
                 self._state_attrs[ATTR_LED] = status[0]['value']
 
                 status = await self.hass.async_add_job(
                     self._device.raw_command,
                     "get_properties",
-                    [{"piid": 11, "siid": 2, "did": self._unique_id}]
+                    [{"piid": 11, "siid": 2, "did": self._did}]
                 )
                 self._state_attrs[ATTR_BUZZER] = status[0]['value']
 
                 status = await self.hass.async_add_job(
                     self._device.raw_command,
                     "get_properties",
-                    [{"piid": 1, "siid": 6, "did": self._unique_id}]
+                    [{"piid": 1, "siid": 6, "did": self._did}]
                 )
                 self._state_attrs[ATTR_CHILD_LOCK] = status[0]['value']
 
                 status = await self.hass.async_add_job(
                     self._device.raw_command,
                     "get_properties",
-                    [{"piid": 2, "siid": 5, "did": self._unique_id}]
+                    [{"piid": 2, "siid": 5, "did": self._did}]
                 )
                 self._state_attrs[ATTR_DELAY_OFF_COUNTDOWN] = status[0]['value']
 
                 status = await self.hass.async_add_job(
                     self._device.raw_command,
                     "get_properties",
-                    [{"piid": 2, "siid": 2, "did": self._unique_id}]
+                    [{"piid": 2, "siid": 2, "did": self._did}]
                 )
 
                 self._state_attrs[ATTR_NATURAL_SPEED] = status[0]['value']
@@ -607,7 +643,7 @@ class XiaomiFanFA1(XiaomiGenericDevice):
             "Turning the miio device on failed.",
             self._device.send,
             "set_properties",
-            [{"piid": 1, "siid": 2, "did": self._unique_id, "value": True}]
+            [{"piid": 1, "siid": 2, "did": self._did, "value": True}]
         )
         if speed:
             result = await self.async_set_speed(speed)
@@ -623,7 +659,7 @@ class XiaomiFanFA1(XiaomiGenericDevice):
             "Turning the miio device off failed.",
             self._device.send,
             "set_properties",
-            [{"piid": 1, "siid": 2, "did": self._unique_id, "value": False}]
+            [{"piid": 1, "siid": 2, "did": self._did, "value": False}]
         )
 
         if result:
@@ -650,7 +686,7 @@ class XiaomiFanFA1(XiaomiGenericDevice):
             "Setting fan speed of the miio device failed.",
             self._device.send,
             "set_properties",
-            [{"piid": 2, "siid": 2, "did": self._unique_id, "value": speed}]
+            [{"piid": 2, "siid": 2, "did": self._did, "value": speed}]
         )
 
     async def async_oscillate(self, oscillating: bool) -> None:
@@ -660,14 +696,14 @@ class XiaomiFanFA1(XiaomiGenericDevice):
                 "Setting oscillate on of the miio device failed.",
                 self._device.send,
                 "set_properties",
-                [{"piid": 3, "siid": 2, "did": self._unique_id, "value": True}]
+                [{"piid": 3, "siid": 2, "did": self._did, "value": True}]
             )
         else:
             await self._try_command(
                 "Setting oscillate off of the miio device failed.",
                 self._device.send,
                 "set_properties",
-                [{"piid": 3, "siid": 2, "did": self._unique_id, "value": False}]
+                [{"piid": 3, "siid": 2, "did": self._did, "value": False}]
             )
 
     async def async_set_oscillation_angle(self, angle: int) -> None:
@@ -679,7 +715,7 @@ class XiaomiFanFA1(XiaomiGenericDevice):
             "Setting angle of the miio device failed.",
                 self._device.send,
                 "set_properties",
-                [{"piid": 5, "siid": 2, "did": self._unique_id, "value": angle}]
+                [{"piid": 5, "siid": 2, "did": self._did, "value": angle}]
         )
 
     async def async_set_direction(self, direction: str) -> None:
@@ -690,14 +726,14 @@ class XiaomiFanFA1(XiaomiGenericDevice):
                 "Setting oscillate on of the miio device failed.",
                 self._device.send,
                 "set_properties",
-                [{"piid": 4, "siid": 2, "did": self._unique_id, "value": True}]
+                [{"piid": 4, "siid": 2, "did": self._did, "value": True}]
             )
         else:
             await self._try_command(
                 "Setting oscillate on of the miio device failed.",
                 self._device.send,
                 "set_properties",
-                [{"piid": 4, "siid": 2, "did": self._unique_id, "value": False}]
+                [{"piid": 4, "siid": 2, "did": self._did, "value": False}]
             )
 
     async def async_set_led_brightness(self, brightness: int = 2):
@@ -709,7 +745,7 @@ class XiaomiFanFA1(XiaomiGenericDevice):
             "Setting the led brightness of the miio device failed.",
                 self._device.send,
                 "set_properties",
-                [{"piid": 10, "siid": 2, "did": self._unique_id, "value": brightness}]
+                [{"piid": 10, "siid": 2, "did": self._did, "value": brightness}]
         )
 
     async def async_set_natural_mode_on(self):
@@ -721,7 +757,7 @@ class XiaomiFanFA1(XiaomiGenericDevice):
             "Turning on natural mode of the miio device failed.",
             self._device.send,
             "set_properties",
-            [{"piid": 7, "siid": 2, "did": self._unique_id, "value": 0}]
+            [{"piid": 7, "siid": 2, "did": self._did, "value": 0}]
         )
 
     async def async_set_natural_mode_off(self):
@@ -733,7 +769,7 @@ class XiaomiFanFA1(XiaomiGenericDevice):
             "Turning on natural mode of the miio device failed.",
             self._device.send,
             "set_properties",
-            [{"piid": 7, "siid": 2, "did": self._unique_id, "value": 1}]
+            [{"piid": 7, "siid": 2, "did": self._did, "value": 1}]
         )
 
     async def async_set_delay_off(self, delay_off_countdown: int) -> None:
@@ -743,7 +779,7 @@ class XiaomiFanFA1(XiaomiGenericDevice):
             "Setting delay off miio device failed.", self._device.delay_off,
             self._device.send,
             "set_properties",
-            [{"piid": 2, "siid": 5, "did": self._unique_id, "value": delay_off_countdown}]
+            [{"piid": 2, "siid": 5, "did": self._did, "value": delay_off_countdown}]
         )
 
     async def async_set_child_lock_on(self):
@@ -755,7 +791,7 @@ class XiaomiFanFA1(XiaomiGenericDevice):
             "Turning the child lock of the miio device on failed.",
             self._device.send,
             "set_properties",
-            [{"piid": 1, "siid": 6, "did": self._unique_id, "value": True}]
+            [{"piid": 1, "siid": 6, "did": self._did, "value": True}]
         )
 
     async def async_set_child_lock_off(self):
@@ -767,7 +803,7 @@ class XiaomiFanFA1(XiaomiGenericDevice):
             "Turning the child lock of the miio device off failed.",
             self._device.send,
             "set_properties",
-            [{"piid": 1, "siid": 6, "did": self._unique_id, "value": False}]
+            [{"piid": 1, "siid": 6, "did": self._did, "value": False}]
         )
 
     async def async_set_horizontal_swing_back(self):
@@ -779,7 +815,7 @@ class XiaomiFanFA1(XiaomiGenericDevice):
             "Turning on natural mode of the miio device failed.",
             self._device.send,
             "set_properties",
-            [{"piid": 4, "siid": 5, "did": self._unique_id, "value": True}]
+            [{"piid": 4, "siid": 5, "did": self._did, "value": True}]
         )
 
     async def async_set_vertical_swing_back(self):
@@ -791,5 +827,5 @@ class XiaomiFanFA1(XiaomiGenericDevice):
             "Turning on natural mode of the miio device failed.",
             self._device.send,
             "set_properties",
-            [{"piid": 4, "siid": 5, "did": self._unique_id, "value": True}]
+            [{"piid": 4, "siid": 5, "did": self._did, "value": True}]
         )

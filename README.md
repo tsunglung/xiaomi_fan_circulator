@@ -2,7 +2,7 @@
 
 This is a custom component for home assistant to integrate the Xiaomi Mijia DC Frequency Conversion Circulating Fan (`zhimi.fan.fa1`, `zhimi.fan.fb1`).
 
-Please follow the instructions on [Retrieving the Access Token](https://www.home-assistant.io/components/vacuum.xiaomi_miio/#retrieving-the-access-token) to get the API token to use in the configuration.yaml file.
+Please follow the instructions on [Retrieving the Access Token](https://www.home-assistant.io/components/vacuum.xiaomi_miio/#retrieving-the-access-token) to get the API token.
 
 Credits: Thanks to [Rytilahti](https://github.com/rytilahti/python-miio) for all the work.
 This repository is forked from [syssi/xiaomi_fan](https://github.com/syssi/xiaomi_fan)
@@ -36,26 +36,20 @@ This repository is forked from [syssi/xiaomi_fan](https://github.com/syssi/xiaom
 
 ## Install
 
-You can install this custom component by adding this repository ([https://github.com/tsunglung/xiaomi_fan_fa1](https://github.com/tsunglung/xiaomi_fan_fa1/)) to [HACS](https://hacs.xyz/) in the settings menu of HACS first. You will find the custom component in the integration menu afterwards, look for 'Xiaomi Mijia DC Frequency Conversion Circulating Fan Integration'. Alternatively, you can install it manually by copying the custom_component folder to your Home Assistant configuration folder.
+You can install component with [HACS](https://hacs.xyz/) custom repo: HACS > Integrations > 3 dots (upper top corner) > Custom repositories > URL: `tsunglung/xiaomi_fan_circulator` > Category: Integration
 
+Or manually copy `xiaomi_fan_circulator` folder to `custom_components` folder in your config folder.
 
-## Setup
+## Config
 
-```yaml
-# configuration.yaml
+With GUI. Configuration > Integration > Add Integration > Xiaomi Circulating Fan
 
-fan:
-  - platform: xiaomi_fan_fa1
-    name: Livingroom Smart DC Fan
-    host: 10.8.1.100
-    token: abcdefghi9jk1lm8240no3p5qrs6tu7x
-```
+If the integration is not in the list, you need to clear the browser cache.
 
 Configuration variables:
 - **host** (*Required*): The IP of your fan.
 - **token** (*Required*): The API token of your fan.
-- **name** (*Optional*): The name of your fan.
-- **model** (*Optional*): The model of your device. Valid values are `zhimi.fan.fa1` or `zhimi.fan.fb1`. This setting can be used to bypass the device model detection and is recommended if your device isn't always available.
+- **model** (*Required*): The model of your device. Valid values are `zhimi.fan.fa1` for China version or `zhimi.fan.fb1` for Global version. This setting can be used to bypass the device model detection and is recommended if your device isn't always available.
 
 ## Platform services
 
@@ -123,7 +117,7 @@ Turn the natural mode off.
 
 #### Service `fan.xiaomi_miio_set_buzzer_on`
 
-Turn the buzzer on.
+Turn the buzzer on. (zhimi.fan.fa1, zhimi.fan.fb1 not support)
 
 | Service data attribute    | Optional | Description                                                          |
 |---------------------------|----------|----------------------------------------------------------------------|
@@ -131,7 +125,7 @@ Turn the buzzer on.
 
 #### Service `fan.xiaomi_miio_set_buzzer_off`
 
-Turn the buzzer off.
+Turn the buzzer off. (zhimi.fan.fa1, zhimi.fan.fb1 not support)
 
 | Service data attribute    | Optional | Description                                                          |
 |---------------------------|----------|----------------------------------------------------------------------|
