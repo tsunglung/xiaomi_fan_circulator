@@ -183,17 +183,17 @@ FEATURE_FLAGS_FAN_FA1 = (
     | FEATURE_SET_LED
 )
 
-SERVICE_SET_BUZZER_ON = "xiaomi_miio_set_buzzer_on"
-SERVICE_SET_BUZZER_OFF = "xiaomi_miio_set_buzzer_off"
-SERVICE_SET_CHILD_LOCK_ON = "xiaomi_miio_set_child_lock_on"
-SERVICE_SET_CHILD_LOCK_OFF = "xiaomi_miio_set_child_lock_off"
-SERVICE_SET_LED_BRIGHTNESS = "xiaomi_miio_set_led_brightness"
-SERVICE_SET_OSCILLATION_ANGLE = "xiaomi_miio_set_oscillation_angle"
-SERVICE_SET_DELAY_OFF = "xiaomi_miio_set_delay_off"
-SERVICE_SET_NATURAL_MODE_ON = "xiaomi_miio_set_natural_mode_on"
-SERVICE_SET_NATURAL_MODE_OFF = "xiaomi_miio_set_natural_mode_off"
-SERVICE_SET_HORIZONTAL_SWING_BACK = "xiaomi_miio_set_horizontal_swing_back"
-SERVICE_SET_VERTICAL_SWING_BACK = "xiaomi_miio_set_vertical_swing_back"
+SERVICE_SET_BUZZER_ON = "fan_set_buzzer_on"
+SERVICE_SET_BUZZER_OFF = "fan_set_buzzer_off"
+SERVICE_SET_CHILD_LOCK_ON = "fan_set_child_lock_on"
+SERVICE_SET_CHILD_LOCK_OFF = "fan_set_child_lock_off"
+SERVICE_SET_LED_BRIGHTNESS = "fan_set_led_brightness"
+SERVICE_SET_OSCILLATION_ANGLE = "fan_set_oscillation_angle"
+SERVICE_SET_DELAY_OFF = "fan_set_delay_off"
+SERVICE_SET_NATURAL_MODE_ON = "fan_set_natural_mode_on"
+SERVICE_SET_NATURAL_MODE_OFF = "fan_set_natural_mode_off"
+SERVICE_SET_HORIZONTAL_SWING_BACK = "fan_set_horizontal_swing_back"
+SERVICE_SET_VERTICAL_SWING_BACK = "fan_set_vertical_swing_back"
 
 AIRPURIFIER_SERVICE_SCHEMA = vol.Schema({vol.Optional(ATTR_ENTITY_ID): cv.entity_ids})
 
