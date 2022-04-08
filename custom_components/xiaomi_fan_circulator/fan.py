@@ -18,11 +18,8 @@ from homeassistant.components.fan import (
     PLATFORM_SCHEMA,
     SUPPORT_SET_SPEED,
     DOMAIN,
-    SPEED_OFF,
     SUPPORT_OSCILLATE,
     SUPPORT_DIRECTION,
-    ATTR_SPEED,
-    ATTR_SPEED_LIST,
     ATTR_OSCILLATING,
     ATTR_DIRECTION,
 )
@@ -122,6 +119,8 @@ FAN_SPEED_LEVEL2 = "Level 2"
 FAN_SPEED_LEVEL3 = "Level 3"
 FAN_SPEED_LEVEL4 = "Level 4"
 FAN_SPEED_LEVEL5 = "Level 5"
+
+SPEED_OFF = "off"
 
 FAN_SPEED_LIST = {
     SPEED_OFF: range(0, 1),
@@ -493,7 +492,6 @@ class XiaomiFanFA1(XiaomiGenericDevice):
         self._oscillate = None
         self._natural_mode = False
         self._retry = retries
-        self._state_attrs[ATTR_SPEED] = None
         self._state_attrs.update(
             {attribute: None for attribute in self._available_attributes}
         )
@@ -603,7 +601,6 @@ class XiaomiFanFA1(XiaomiGenericDevice):
                 for level, value in FAN_SPEED_LIST_FA1.items():
                     if status[0]['value'] == value:
                         self._speed = level
-                        self._state_attrs[ATTR_SPEED] = level
                         break
 
             else:
